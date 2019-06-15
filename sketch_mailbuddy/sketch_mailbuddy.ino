@@ -16,24 +16,26 @@ int hallSensorPin = A5;
 int ledPin = 13;
 int hallData = 0;
 int hallDataStandard;
-int sensorTolerance = 2;
+int sensorTolerance = 5;
 unsigned long currentTimeMillis = 0;
 int updateRate = 100;
 bool opened = false;
 bool mailPresent = false;
 
 //Configure bluetooth
-char REQUEST_MAIL_STATUS = '1';
-char REQUEST_START_HALL_READ = '2';
-char REQUEST_STOP_HALL_READ = '3';
-char REQUEST_RESET = '4';
-char REQUEST_TOGGLE_LED = '5';
+char REQUEST_CHECK_MAIL = '1';
+char REQUEST_TOGGLE_HALL_READ = '2';
+char REQUEST_RESET = '3';
+char REQUEST_TOGGLE_LED = '4';
+char REQUEST_START_MONITORING = '5';
 
 SoftwareSerial btModule(2,3);
 
 int btData;
 bool sendingHallData = false;
 unsigned long lastHallDataMillis = 0;
+
+void(* resetFunc) (void) = 0; //declare reset function @ address 0
 
 void setup() {
   pinMode(ledPin, OUTPUT);
@@ -57,18 +59,18 @@ void loop() {
   }
 
   //Debugging
-  if(Serial.available()){
-    btModule.println(Serial.read());
-  }
-  if(btModule.available()){
-    Serial.println(btModule.read());
-  }
+//  if(Serial.available()){
+//    btModule.println(Serial.read());
+//  }
+//  if(btModule.available()){
+//    Serial.println(btModule.read());
+//  }
 }
 
 void sendHallData(){
   if((unsigned long)(millis() - lastHallDataMillis) > 500){
     lastHallDataMillis = millis();
-    btModule.println(INFO_HALL_SENSOR_READING + ":" + "Hall sensor reads: " + hallData);
+    btModule.println(INFO_HALL_SENSOR_READING + ":" + hallData);
     delay(100);
   }
 }
@@ -76,15 +78,20 @@ void sendHallData(){
 void checkBluetooth(){
   if(btModule.available()){
     btData = btModule.read();
-    if(btData==REQUEST_MAIL_STATUS){
-//      btModule.println(INFO_MAIL_STATUS, mailPresent);
+    Serial.println(btData);
+    Serial.println((String)"Mail present " + mailPresent);
+    if(btData==REQUEST_CHECK_MAIL){
+      btModule.println(INFO_MAIL_STATUS + ":" + mailPresent);
       delay(100);
-    }else if(btData==REQUEST_START_HALL_READ){
-      sendingHallData = true;
-    }else if(btData==REQUEST_STOP_HALL_READ){
-      sendingHallData = false;
-      lastHallDataMillis = 0;
-    }else if(btData==REQUEST_TOGGLE_LED){
+    }else if(btData==REQUEST_TOGGLE_HALL_READ){
+      sendingHallData = !sendingHallData;
+      if(!sendingHallData){
+        lastHallDataMillis = 0;
+      }
+    }else if(btData==REQUEST_RESET){
+        resetFunc();
+    }
+    else if(btData==REQUEST_TOGGLE_LED){
       digitalWrite(ledPin, !digitalRead(ledPin));
       btModule.println("LED toggled!");
       delay(100);
@@ -109,11 +116,11 @@ void calibrate() {
   unsigned long sumStates= 0;
   int countdown = CALIBRATION_TOTAL_DURATION/1000;
 
-  Serial.println("Calibrating...");
+  Serial.print("Calibrating: ");
   Serial.println(countdown);
+  Serial.println("s left");
 
-  btModule.println(INFO_GENERAL_OUTPUT + ":" + "Calibrating...");
-  btModule.println(INFO_GENERAL_OUTPUT + ":" + countdown);
+  btModule.println(INFO_GENERAL_OUTPUT + ":" + "Calibrating: " + countdown + "s left");
   delay(100);
 
   for(int i = 0, k=0 ; i < CALIBRATION_SAMPLE_SIZE; i++, k++){
@@ -141,7 +148,7 @@ void calibrate() {
       while(millis() < currentTimeMillis + CALIBRATION_STEP_DURATION){} // Wait until the current step ended if necessary
       countdown--;
       Serial.println(countdown);
-      btModule.println(INFO_GENERAL_OUTPUT + ":" + countdown);
+      btModule.println(INFO_GENERAL_OUTPUT + ":" + "Calibrating: " + countdown + "s left");
       currentTimeMillis = 0; // reset the timestamp
       k = 0; // reset counter for one step
     }
@@ -162,16 +169,17 @@ void calibrate() {
   Serial.println((String)"Chosen deviation: " + sensorTolerance);  
   
   btModule.println(INFO_GENERAL_OUTPUT + ":" + "Collected samples: " + CALIBRATION_SAMPLE_SIZE);
-  delay(100);
+  delay(1000);
   btModule.println(INFO_GENERAL_OUTPUT + ":" + "Collected over a duration of: " + CALIBRATION_TOTAL_DURATION);
-  delay(100);
+  delay(1000);
   hallDataStandard = sumStates/CALIBRATION_SAMPLE_SIZE;
   btModule.println(INFO_GENERAL_OUTPUT + ":" + "Calibration value: " + hallDataStandard);
-  delay(100);
+  delay(1000);
   btModule.println(INFO_GENERAL_OUTPUT + ":" + "Detected deviation: " + deviation);  
-  delay(100);
+  delay(1000);
   btModule.println(INFO_GENERAL_OUTPUT + ":" + "Chosen deviation: " + sensorTolerance);  
-  delay(3000);
+  delay(1000);
+  btModule.println(INFO_GENERAL_OUTPUT + ":" + "Chosen deviation: " + sensorTolerance);  
 }
 
   
